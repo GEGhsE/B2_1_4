@@ -724,7 +724,7 @@ function glyphBox(j,batchim,strokeStart,clickable){
   return `<div${clickAttr}><svg viewBox="0 0 100 100">${ghost}${ink}</svg></div>`;
 }
 // 가로 모음(초성 아래에 오는 모음): ㅗ ㅛ ㅜ ㅠ ㅡ
-const HORIZONTAL_VOWELS=['ㅗ','ㅛ','ㅜ','ㅠ','ㅡ'];
+const HORIZONTAL_VOWELS=['ㅗ','ㅛ','ㅜ','ㅠ','ㅡ'];;
 // 이중(복합) 모음: 세로획을 포함하므로 초성 오른쪽(세로형)으로 배치
 const COMPLEX_VOWELS=['ㅘ','ㅙ','ㅚ','ㅝ','ㅞ','ㅟ','ㅢ'];
 // 이중모음을 쓰기 가능한 구성 자모로 분해 (획순 학습용)
@@ -1910,8 +1910,13 @@ function openTraceModal(word, hsIndex, onDone){
     const vert=HORIZONTAL_VOWELS.includes(jung);
     const cells=[];
     if(STROKES[cho]) cells.push({jamo:cho,isJong:false,paths:STROKES[cho]});
-    // 모음: 이중모음도 STROKES에 합성 획이 있으면 한 칸으로
-    if(jung&&STROKES[jung]) cells.push({jamo:jung,isJong:false,paths:STROKES[jung]});
+    // [수정] 겹모음(ㅘ ㅚ 등)은 홑모음 두 칸으로 나눕니다.
+    //   화 → ㅎ, ㅗ, ㅏ / 쇠 → ㅅ, ㅗ, ㅣ
+    //   전에는 ㅘ, ㅚ 를 한 칸에 통째로 그려서 아이가 획순을 익히기 어려웠습니다.
+    if(jung){
+      const parts = VOWEL_PARTS[jung] || [jung];
+      parts.forEach(v=>{ if(STROKES[v]) cells.push({jamo:v,isJong:false,paths:STROKES[v]}); });
+    }
     if(jong&&STROKES[jong]) cells.push({jamo:jong,isJong:true,paths:STROKES[jong]});
     syllables.push({cells,vert,si});
   });
@@ -2035,6 +2040,7 @@ function openTraceModal(word, hsIndex, onDone){
     const svgNS='http://www.w3.org/2000/svg';
     const cell=document.createElement('div');
     cell.className='tcell'+(c.isJong?' batchim':'');
+    cell.setAttribute('data-jamo', c.jamo || '');
     const svg=document.createElementNS(svgNS,'svg');
     svg.setAttribute('viewBox','0 0 100 100');
     // 가이드 획(회색) + 완성 획(숨김) + 사용자 획
