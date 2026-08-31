@@ -1899,7 +1899,8 @@ function openTraceModal(word, hsIndex, onDone){
   const JUNG_S=['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
   const JONG_S=['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
 
-  // syllables: [{cells:[{jamo,isJong,paths:[...]}], vert}]
+  // syllables: [{cells:[{jamo,isJong,row,paths:[...]}], vert}]
+  //  row: 'top'(초성/옆모음) | 'mid'(겹모음 밑모음) | 'bottom'(받침)
   const syllables=[];
   [...word].forEach((ch,si)=>{
     const code=ch.charCodeAt(0)-0xAC00;
@@ -1907,17 +1908,22 @@ function openTraceModal(word, hsIndex, onDone){
     const cho=CHO_S[Math.floor(code/588)];
     const jung=JUNG_S[Math.floor((code%588)/28)];
     const jong=JONG_S[code%28];
-    const vert=HORIZONTAL_VOWELS.includes(jung);
+    const complexParts = jung ? VOWEL_PARTS[jung] : null; // 예: ㅘ→['ㅗ','ㅏ'] (밑모음,옆모음)
+    const vert = !complexParts && HORIZONTAL_VOWELS.includes(jung); // 홑 가로모음일 때만 세로 배치
     const cells=[];
-    if(STROKES[cho]) cells.push({jamo:cho,isJong:false,paths:STROKES[cho]});
-    // [수정] 겹모음(ㅘ ㅚ 등)은 홑모음 두 칸으로 나눕니다.
-    //   화 → ㅎ, ㅗ, ㅏ / 쇠 → ㅅ, ㅗ, ㅣ
-    //   전에는 ㅘ, ㅚ 를 한 칸에 통째로 그려서 아이가 획순을 익히기 어려웠습니다.
-    if(jung){
-      const parts = VOWEL_PARTS[jung] || [jung];
-      parts.forEach(v=>{ if(STROKES[v]) cells.push({jamo:v,isJong:false,paths:STROKES[v]}); });
+    if(STROKES[cho]) cells.push({jamo:cho,isJong:false,row:'top'});
+    // [수정] 겹모음(ㅘ ㅚ 등)은 실제 글자 모양대로 배치합니다.
+    //   화 → 위: ㅎ,ㅏ / 아래: ㅗ    쇠 → 위: ㅅ,ㅣ / 아래: ㅗ
+    //   (쓰는 순서는 그대로: 초성 → 밑모음(ㅗ/ㅜ/ㅡ) → 옆모음(ㅏㅐㅣ 등) → 받침)
+    if(complexParts){
+      const [base,sec]=complexParts;               // base: ㅗ/ㅜ/ㅡ(아래), sec: ㅏㅐㅣ 등(초성 옆)
+      if(STROKES[base]) cells.push({jamo:base,isJong:false,row:'mid'});
+      if(STROKES[sec])  cells.push({jamo:sec, isJong:false,row:'top'});
+    } else if(jung && STROKES[jung]){
+      cells.push({jamo:jung,isJong:false,row:'top'});
     }
-    if(jong&&STROKES[jong]) cells.push({jamo:jong,isJong:true,paths:STROKES[jong]});
+    if(jong&&STROKES[jong]) cells.push({jamo:jong,isJong:true,row:'bottom'});
+    cells.forEach(c=>{ c.paths=STROKES[c.jamo]||[]; });
     syllables.push({cells,vert,si});
   });
 
@@ -1944,19 +1950,23 @@ function openTraceModal(word, hsIndex, onDone){
   const tsyl=ov.querySelector('#tsyl');
   const tmsg=ov.querySelector('#tmsg');
 
-  // 음절별 칸 렌더
-  const cellEls=[]; // 전역 칸 순서와 매칭
+  // 음절별 칸 렌더 (top/mid/bottom 세 줄로 쌓기)
+  const cellEls=[]; // 전역 칸 순서와 매칭 (그리기 순서 그대로: syl.cells push 순서)
   syllables.forEach(syl=>{
     const block=document.createElement('div');block.className='tcell-stack';
-    const top=document.createElement('div');top.className='tcell-row'+(syl.vert?' vert':'');
-    const bottomWrap=document.createElement('div');bottomWrap.className='tcell-row';
+    const topRow=document.createElement('div');topRow.className='tcell-row'+(syl.vert?' vert':'');
+    const midRow=document.createElement('div');midRow.className='tcell-row';
+    const bottomRow=document.createElement('div');bottomRow.className='tcell-row';
     syl.cells.forEach(c=>{
       const cell=makeTraceCell(c);
       cellEls.push({cell,info:c});
-      if(c.isJong) bottomWrap.appendChild(cell); else top.appendChild(cell);
+      if(c.row==='mid') midRow.appendChild(cell);
+      else if(c.row==='bottom') bottomRow.appendChild(cell);
+      else topRow.appendChild(cell);
     });
-    block.appendChild(top);
-    if(bottomWrap.children.length) block.appendChild(bottomWrap);
+    block.appendChild(topRow);
+    if(midRow.children.length) block.appendChild(midRow);
+    if(bottomRow.children.length) block.appendChild(bottomRow);
     tsyl.appendChild(block);
   });
 
