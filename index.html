@@ -737,13 +737,26 @@ const VOWEL_PARTS={
 //  - 가로 모음(ㅗㅜㅡ…): [초성] 위 / [모음] 아래  세로 배열
 //  - 받침: 항상 맨 아래
 function syllableBlock(cho,jung,jong,strokeOffset,clickable){
-  const vert = HORIZONTAL_VOWELS.includes(jung);
   let start=strokeOffset||0;
-  const choBox=glyphBox(cho,false,start,clickable);   start+=(STROKES[cho]||[]).length;
-  const jungBox=jung?glyphBox(jung,false,start,clickable):''; if(jung) start+=(STROKES[jung]||[]).length;
-  const top = `<div class="syl-top${vert?' vert':''}">${choBox}${jungBox}</div>`;
+  const choBox=glyphBox(cho,false,start,clickable); start+=(STROKES[cho]||[]).length;
+  // [수정] 겹모음(ㅘ ㅚ 등)은 실제 글자 모양대로 위/아래 두 줄로 나눠 그립니다.
+  //   화 → 위: ㅎ,ㅏ / 아래: ㅗ    쇠 → 위: ㅅ,ㅣ / 아래: ㅗ
+  //   (획 순서는 그대로: 초성 → 밑모음(ㅗ/ㅜ/ㅡ) → 옆모음(ㅏㅐㅣ 등) → 받침)
+  const parts = jung ? VOWEL_PARTS[jung] : null;
+  let top, mid='';
+  if(parts){
+    const [base,sec]=parts;
+    const baseBox = STROKES[base]?glyphBox(base,false,start,clickable):''; if(STROKES[base]) start+=STROKES[base].length;
+    const secBox  = STROKES[sec] ?glyphBox(sec, false,start,clickable):''; if(STROKES[sec])  start+=STROKES[sec].length;
+    top = `<div class="syl-top">${choBox}${secBox}</div>`;
+    mid = baseBox ? `<div class="syl-top">${baseBox}</div>` : '';
+  }else{
+    const vert = HORIZONTAL_VOWELS.includes(jung);
+    const jungBox=jung?glyphBox(jung,false,start,clickable):''; if(jung) start+=(STROKES[jung]||[]).length;
+    top = `<div class="syl-top${vert?' vert':''}">${choBox}${jungBox}</div>`;
+  }
   const bottom = jong?`${glyphBox(jong,true,start,clickable)}`:'';
-  return `<div class="syl-block">${top}${bottom}</div>`;
+  return `<div class="syl-block">${top}${mid}${bottom}</div>`;
 }
 // 한 글자의 획 개수 합
 function syllableStrokeCount(cho,jung,jong){
